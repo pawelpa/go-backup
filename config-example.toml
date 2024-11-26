@@ -1,0 +1,38 @@
+# source directory list
+[source]
+srcdirs = ["/home", "/important_data"]
+
+[local]
+# destination direcotory for local backups
+dstdir = "/mnt/backups"
+
+
+
+# remote destinations for backup
+[servers.first]
+# set to ip for exampe 127.0.0.1 or host name for example example.com
+Ip  =  "127.0.0.1"
+Port = 22
+# path on remote server where backups will be saved
+# you should have permission to write to this directory      
+DstPath = "/backups"
+#if use key is true then PrivKeyPath must be set
+#also if private key is secured by passpharse set Passpharse.
+Usekey = true 
+PrivKeyPath = '/home/user/.ssh/id_ed25519'
+Passpharse = "passpharse"
+#if Use Key is false set these values
+Username  = "username"
+Password  = "password123"
+
+# second destination server
+[servers.second]
+Ip  =  "localhost"  
+Port = 2222      
+DstPath = "/var/backups"
+Usekey = false 
+# Use key set to false, we not need to use following options
+#PrivKeyPath = '/home/username/.ssh/id_ed25519'
+#Passpharse = "passpharse"
+Username  = "username"
+Password  = "password123"
