@@ -14,3 +14,5 @@
 Edit config.toml to your preference and then run:
 
 ```$ ./go-backup -config config.toml```
+
+You can add **go-backup** as *cron* task
