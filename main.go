@@ -182,7 +182,6 @@ func (c *Config) sendFileToHost(filePath string, host string) error {
 
 	remoteFile := c.ComposeRemoteFilePath(filePath, host)
 
-	// cmd, err := client.Command("mkdir", "-p", c.GetRemotePath(host))
 	err = sftpClient.MkdirAll(c.GetRemotePath(host))
 
 	if err != nil {
@@ -354,11 +353,19 @@ func main() {
 
 	walkFunc := func(file string, finfo os.FileInfo, err error) error {
 
+		var link string
+
 		if err != nil {
 			return err
 		}
 
-		hdr, err := tar.FileInfoHeader(finfo, finfo.Name())
+		if finfo.Mode()&os.ModeSymlink == os.ModeSymlink {
+			if link, err = os.Readlink(file); err != nil {
+				return err
+			}
+		}
+
+		hdr, err := tar.FileInfoHeader(finfo, link)
 
 		if err != nil {
 			log.Fatal("walkFunc: ", err)
@@ -371,6 +378,9 @@ func main() {
 
 		tarWriter.WriteHeader(hdr)
 
+		if !finfo.Mode().IsRegular() {
+			return nil
+		}
 		if finfo.Mode().IsDir() {
 			return nil
 		}
