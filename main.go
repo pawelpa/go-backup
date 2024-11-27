@@ -36,7 +36,7 @@ type Source struct {
 }
 
 type DestinationHost struct {
-	Ip          string
+	Host        string
 	Port        uint
 	DstPath     string
 	PrivKeyPath string
@@ -121,8 +121,8 @@ func (c *Config) GetUserName(host string) string {
 	return c.Servers[host].Username
 }
 
-func (c *Config) GetIp(host string) string {
-	return c.Servers[host].Ip
+func (c *Config) GetHost(host string) string {
+	return c.Servers[host].Host
 }
 
 func (c *Config) GetUseKey(host string) bool {
@@ -147,12 +147,11 @@ func (c *Config) sendFileToHost(filePath string, host string) error {
 	var err error
 	port := c.GetPort(host)
 	username := c.GetUserName(host)
-	ip := c.GetIp(host)
+	ip := c.GetHost(host)
 
 	if c.GetUseKey(host) {
 
-		//todo: add passpharse
-		auth, err = goph.Key(c.GetPrivKeyPath(host), "")
+		auth, err = goph.Key(c.GetPrivKeyPath(host), c.GetPrivateKeyPasspharse(host))
 		if err != nil {
 			return err
 		}

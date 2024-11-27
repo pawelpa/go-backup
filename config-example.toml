@@ -1,38 +1,103 @@
-# source directory list
 [source]
-srcdirs = ["/home", "/important_data"]
+##################################################################
+# source directory on local machine                              #
+# directories from which copies will be created                  # 
+##################################################################
+srcdirs = ["/home/username", "/important_data"]
+##################################################################
 
 [local]
-# destination direcotory for local backups
+##################################################################
+# destination directory on local machine                         #
+# place where backups will be saved                              #
+##################################################################
 dstdir = "/mnt/backups"
+##################################################################
 
 
 
-# remote destinations for backup
+##################################################################
+# remote destinations for backups                                #
+##################################################################
+
+##################################################################
+# config for remote host named "first"                             #
+##################################################################
 [servers.first]
-# set to ip for exampe 127.0.0.1 or host name for example example.com
-Ip  =  "127.0.0.1"
-Port = 22
-# path on remote server where backups will be saved
-# you should have permission to write to this directory      
-DstPath = "/backups"
-#if use key is true then PrivKeyPath must be set
-#also if private key is secured by passpharse set Passpharse.
-Usekey = true 
-PrivKeyPath = '/home/user/.ssh/id_ed25519'
-Passpharse = "passpharse"
-#if Use Key is false set these values
-Username  = "username"
-Password  = "password123"
+###################################################################
+# host name or ip address                                         #
+# Host = "example.com"                                            #
+# or                                                              #
+# Host = "127.0.0.1"                                              #
+###################################################################
+Host  =  "127.0.0.1"
+###################################################################
 
-# second destination server
+###################################################################
+# port on remote host                                             #
+###################################################################
+Port = 22
+###################################################################
+
+###################################################################
+# path on remote server where backups will be saved               #
+# you should have permission to write to this directory           #
+###################################################################    
+DstPath = "/backups"
+###################################################################
+
+
+###################################################################
+# Usekey option should be set to true or false                    #
+# If you want to use ssh public key authentication set it to true #
+###################################################################
+Usekey = true 
+###################################################################
+
+###################################################################
+# PrivKeyPath should be set to path where private key is stored.  #
+# set it if you set Usekey to true                                #
+###################################################################
+PrivKeyPath = '/home/user/.ssh/id_ed25519'
+###################################################################
+
+###################################################################
+# Set to passpharse that protect key you specified in PrivKeyPath #
+# or set it to "" (Passparse = "") if your key is not protected   #
+# by passpharse                                                   #
+###################################################################
+Passpharse = "passpharse"
+###################################################################
+
+###################################################################
+# username on remote host                                         #
+###################################################################
+Username  = "username"
+###################################################################
+
+###################################################################
+# Set password if Usekey = false otherwise set it to ""           #
+###################################################################
+Password  = "password123"
+###################################################################
+
+
+# example
+###################################################################
+# -remonte host: example.com
+# -remonte port: 2222
+# -path on remote host where backups will be stored: /backups
+# -use public key authentication (Usekey set to true)
+# -private key path set to /home/username/.ssh/id_ed25519       
+# -username is set to "username"
+# -password set to "" because Usekey is set to true
+###################################################################
 [servers.second]
-Ip  =  "localhost"  
+Host  =  "example.com"  
 Port = 2222      
-DstPath = "/var/backups"
-Usekey = false 
-# Use key set to false, we not need to use following options
-#PrivKeyPath = '/home/username/.ssh/id_ed25519'
+DstPath = "/backups"
+Usekey = true 
+PrivKeyPath = '/home/username/.ssh/id_ed25519'
 #Passpharse = "passpharse"
 Username  = "username"
-Password  = "password123"
+Password  = ""
