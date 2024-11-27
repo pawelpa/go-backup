@@ -88,7 +88,8 @@ Password  = "password123"
 # -remonte port: 2222
 # -path on remote host where backups will be stored: /backups
 # -use public key authentication (Usekey set to true)
-# -private key path set to /home/username/.ssh/id_ed25519       
+# -private key path set to /home/username/.ssh/id_ed25519 
+# -Passpharse set to "", private key is not protected by passpharse     
 # -username is set to "username"
 # -password set to "" because Usekey is set to true
 ###################################################################
@@ -98,6 +99,6 @@ Port = 2222
 DstPath = "/backups"
 Usekey = true 
 PrivKeyPath = '/home/username/.ssh/id_ed25519'
-#Passpharse = "passpharse"
+Passpharse = ""
 Username  = "username"
 Password  = ""
