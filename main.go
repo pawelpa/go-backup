@@ -97,7 +97,7 @@ func CreateTemporaryFile() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format("20060102150405")), nil
+	return fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format("2006-01-02_150405")), nil
 
 }
 
