@@ -61,7 +61,7 @@ func (app *App) Init(configPath string) {
 		log.Fatal("Can't parse config file: ", err)
 	}
 
-	if err := app.CreateTemporaryFile(); err != nil {
+	if err := app.CreateTemporaryFiles(); err != nil {
 		log.Fatal("Can't create temporary file for backup")
 	}
 
@@ -84,7 +84,7 @@ func (app *App) GetSourceDirs() []string {
 	return app.config.Srcdir.Srcdirs
 }
 
-func (app *App) CreateTemporaryFile() error {
+func (app *App) CreateTemporaryFiles() error {
 
 	dir, err := os.MkdirTemp("", "go-backup-")
 	if err != nil {
@@ -92,6 +92,7 @@ func (app *App) CreateTemporaryFile() error {
 	}
 
 	app.tempBackupFile = fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format(app.fileNameFormat))
+	app.tempChecksumFile = fmt.Sprintf("%s.sha256sum", app.tempBackupFile)
 
 	return nil
 
@@ -137,7 +138,7 @@ func (c *Config) ParseConfig(configFile string) error {
 
 func (c *Config) ComposeLocalFile(tempFile string) string {
 
-	return fmt.Sprintf("%s/%s", c.Dstdir.Dstdir, filepath.Base(tempFile))
+	return fmt.Sprintf("%s/%s", c.Dstdir.Dstdir, path.Base(tempFile))
 
 }
 
@@ -219,40 +220,49 @@ func (app *App) sendFiles() error {
 
 		defer client.Close()
 
-		remoteFile := app.getRemoteFilePath(currentHost)
-		remoteDir := path.Dir(remoteFile)
+		remoteDir := app.getRemoteDestinationDirectory(currentHost)
+
+		remoteBackupFile := path.Join(remoteDir, path.Base(app.getTempFile()))
+
+		remoteChecksumFile := path.Join(remoteDir, path.Base(app.getChecksumFile()))
 
 		err = sftpClient.MkdirAll(remoteDir)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("mkdir %s filed: %s", remoteDir, err)
 		}
 
 		err = sftpClient.Chmod(remoteDir, 0700)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("chmod remonte direcotry failed: %s", err)
 		}
 
-		err = client.Upload(app.tempBackupFile, remoteFile)
+		err = client.Upload(app.getTempFile(), remoteBackupFile)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("uploading %s to %s filed: %s", app.getTempFile(), remoteDir, err)
 		}
 
-		err = sftpClient.Chmod(remoteFile, 0600)
+		err = client.Upload(app.tempChecksumFile, remoteChecksumFile)
+		if err != nil {
+			return fmt.Errorf("error uploading %s to %s: %s", app.tempChecksumFile, remoteChecksumFile, err)
+		}
+
+		err = sftpClient.Chmod(remoteBackupFile, 0600)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("chmod %s error: %s", remoteBackupFile, err)
 		}
 
 	}
 	return nil
 }
 
-func (app *App) getRemoteFilePath(currentHost string) string {
+func (app *App) getRemoteDestinationDirectory(currentHost string) string {
 
-	return fmt.Sprintf("%s/%s", app.config.Servers[currentHost].DstPath, path.Base(app.tempBackupFile))
+	return app.config.Servers[currentHost].DstPath
+
 }
 
 func IsBaseDirExists(file string) error {
@@ -308,9 +318,9 @@ func (app *App) createLocalBackup() error {
 		return err
 	}
 
-	// if err := CopyFile(checksumFile, c.ComposeLocalFile(checksumFile)); err != nil {
-	// 	return err
-	// }
+	if err := CopyFile(app.getChecksumFile(), app.config.ComposeLocalFile(app.getChecksumFile())); err != nil {
+		return err
+	}
 	return nil
 
 }
@@ -343,7 +353,7 @@ func verifyChecksum(file string) error {
 
 func generateChecksumForFile(file string) error {
 
-	cmd := exec.Command("sha256sum", filepath.Base(file))
+	cmd := exec.Command("sha256sum", path.Base(file))
 
 	checksumFile, err := os.Create(ComposeBackupChecksumFileName(file))
 
@@ -353,7 +363,7 @@ func generateChecksumForFile(file string) error {
 
 	defer checksumFile.Close()
 
-	cmd.Dir = filepath.Dir(file)
+	cmd.Dir = path.Dir(file)
 
 	cmd.Stdout = checksumFile
 
@@ -378,7 +388,7 @@ func main() {
 	tarFile, err := os.Create(app.getTempFile())
 
 	if err != nil {
-		log.Fatal("Main create backup file: ", err)
+		log.Fatal("can't create temporary backup file: ", err)
 	}
 
 	gzipWriter := gzip.NewWriter(tarFile)
@@ -425,7 +435,6 @@ func main() {
 		}
 		defer srcFile.Close()
 
-		//Copy content of file to tar
 		_, err = io.Copy(tarWriter, srcFile)
 
 		if err != nil {
@@ -450,13 +459,16 @@ func main() {
 
 		}
 	}
+	tarWriter.Flush()
+	gzipWriter.Flush()
 	tarWriter.Close()
 	gzipWriter.Close()
+	tarFile.Close()
 
 	err = generateChecksumForFile(app.getTempFile())
 
 	if err != nil {
-		log.Println("Can't generete checksum file: ", err)
+		log.Println("can't generete checksum file: ", err)
 	}
 
 	err = verifyChecksum(app.getTempFile())
@@ -471,7 +483,11 @@ func main() {
 		log.Println("Can't create local backup. Skipping...", err)
 	}
 
-	app.sendFiles()
+	err = app.sendFiles()
+
+	if err != nil {
+		log.Printf("Error sending files to remote host: %s", err)
+	}
 
 	app.Finish()
 
