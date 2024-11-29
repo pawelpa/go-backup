@@ -53,18 +53,23 @@ type DestinationHost struct {
 	Passpharse  string
 }
 
-func (app *App) Init(configPath string) {
+func (app *App) Init(configPath string) error {
 
 	app.fileNameFormat = "2006-01-02_150405"
 
 	if err := app.config.ParseConfig(configPath); err != nil {
-		log.Fatal("Can't parse config file: ", err)
+		return fmt.Errorf("can't parse config file: %s", err)
 	}
 
-	if err := app.CreateTemporaryFiles(); err != nil {
-		log.Fatal("Can't create temporary file for backup")
+	dir, err := app.CreateTemporaryDirectory()
+	if err != nil {
+		return fmt.Errorf("can't create temporary direcotry for backup: %s", err)
 	}
 
+	app.tempBackupFile = fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format(app.fileNameFormat))
+	app.tempChecksumFile = fmt.Sprintf("%s.sha256sum", app.tempBackupFile)
+
+	return nil
 }
 
 func (app *App) getTempFile() string {
@@ -84,17 +89,14 @@ func (app *App) GetSourceDirs() []string {
 	return app.config.Srcdir.Srcdirs
 }
 
-func (app *App) CreateTemporaryFiles() error {
+func (app *App) CreateTemporaryDirectory() (string, error) {
 
 	dir, err := os.MkdirTemp("", "go-backup-")
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	app.tempBackupFile = fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format(app.fileNameFormat))
-	app.tempChecksumFile = fmt.Sprintf("%s.sha256sum", app.tempBackupFile)
-
-	return nil
+	return dir, nil
 
 }
 
@@ -383,7 +385,11 @@ func main() {
 
 	flag.Parse()
 
-	app.Init(*configPath)
+	err := app.Init(*configPath)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	tarFile, err := os.Create(app.getTempFile())
 
