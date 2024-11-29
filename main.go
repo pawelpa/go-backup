@@ -22,6 +22,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+type App struct {
+	config Config
+}
+
 type Config struct {
 	Srcdir  Source   `toml:"source"`
 	Dstdir  LocalDst `toml:"local"`
