@@ -23,7 +23,10 @@ import (
 )
 
 type App struct {
-	config Config
+	config           Config
+	tempBackupFile   string
+	tempChecksumFile string
+	fileNameFormat   string
 }
 
 type Config struct {
@@ -48,6 +51,50 @@ type DestinationHost struct {
 	Password    string
 	UseKey      bool
 	Passpharse  string
+}
+
+func (app *App) Init(configPath string) {
+
+	app.fileNameFormat = "2006-01-02_150405"
+
+	if err := app.config.ParseConfig(configPath); err != nil {
+		log.Fatal("Can't parse config file: ", err)
+	}
+
+	if err := app.CreateTemporaryFile(); err != nil {
+		log.Fatal("Can't create temporary file for backup")
+	}
+
+}
+
+func (app *App) getTempFile() string {
+	return app.tempBackupFile
+}
+func (app *App) getChecksumFile() string {
+	return app.tempChecksumFile
+}
+
+func (app *App) Finish() {
+
+	defer os.RemoveAll(path.Dir(app.tempBackupFile))
+}
+
+func (app *App) GetSourceDirs() []string {
+
+	return app.config.Srcdir.Srcdirs
+}
+
+func (app *App) CreateTemporaryFile() error {
+
+	dir, err := os.MkdirTemp("", "go-backup-")
+	if err != nil {
+		return err
+	}
+
+	app.tempBackupFile = fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format(app.fileNameFormat))
+
+	return nil
+
 }
 
 func verifyHost(host string, remote net.Addr, key ssh.PublicKey) error {
@@ -94,27 +141,12 @@ func (c *Config) ComposeLocalFile(tempFile string) string {
 
 }
 
-func CreateTemporaryFile() (string, error) {
-
-	dir, err := os.MkdirTemp("", "go-backup")
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format("2006-01-02_150405")), nil
-
-}
-
 func ComposeBackupChecksumFileName(fileToChecksum string) string {
 	return fmt.Sprintf("%s.%s", fileToChecksum, "sha256sum")
 }
 
 func (c *Config) GetRemotePath(host string) string {
 	return c.Servers[host].DstPath
-}
-
-func (c *Config) GetSourceDirs() []string {
-	return c.Srcdir.Srcdirs
 }
 
 func (c *Config) GetPassword(host string) string {
@@ -145,76 +177,82 @@ func (c *Config) GetPrivateKeyPasspharse(host string) string {
 	return c.Servers[host].Passpharse
 }
 
-func (c *Config) sendFileToHost(filePath string, host string) error {
+func (app *App) sendFiles() error {
 
-	var auth goph.Auth
-	var err error
-	port := c.GetPort(host)
-	username := c.GetUserName(host)
-	ip := c.GetHost(host)
+	c := app.config
 
-	if c.GetUseKey(host) {
+	for currentHost := range app.config.Servers {
 
-		auth, err = goph.Key(c.GetPrivKeyPath(host), c.GetPrivateKeyPasspharse(host))
+		var auth goph.Auth
+		var err error
+		port := c.GetPort(currentHost)
+		username := c.GetUserName(currentHost)
+		ip := c.GetHost(currentHost)
+
+		if c.GetUseKey(currentHost) {
+
+			auth, err = goph.Key(c.GetPrivKeyPath(currentHost), c.GetPrivateKeyPasspharse(currentHost))
+			if err != nil {
+				return err
+			}
+
+		} else {
+
+			auth = goph.Password(c.GetPassword(currentHost))
+
+		}
+		client, err := goph.NewConn(&goph.Config{
+			User:     username,
+			Addr:     ip,
+			Port:     port,
+			Auth:     auth,
+			Callback: verifyHost,
+		})
 		if err != nil {
 			return err
 		}
 
-	} else {
+		sftpClient, err := client.NewSftp()
+		if err != nil {
+			return err
+		}
 
-		auth = goph.Password(c.GetPassword(host))
+		defer client.Close()
+
+		remoteFile := app.getRemoteFilePath(currentHost)
+		remoteDir := path.Dir(remoteFile)
+
+		err = sftpClient.MkdirAll(remoteDir)
+
+		if err != nil {
+			return err
+		}
+
+		err = sftpClient.Chmod(remoteDir, 0700)
+
+		if err != nil {
+			return err
+		}
+
+		err = client.Upload(app.tempBackupFile, remoteFile)
+
+		if err != nil {
+			return err
+		}
+
+		err = sftpClient.Chmod(remoteFile, 0600)
+
+		if err != nil {
+			return err
+		}
 
 	}
-	client, err := goph.NewConn(&goph.Config{
-		User:     username,
-		Addr:     ip,
-		Port:     port,
-		Auth:     auth,
-		Callback: verifyHost,
-	})
-	if err != nil {
-		return err
-	}
-
-	sftpClient, err := client.NewSftp()
-	if err != nil {
-		return err
-	}
-
-	defer client.Close()
-
-	remoteFile := c.ComposeRemoteFilePath(filePath, host)
-
-	err = sftpClient.MkdirAll(c.GetRemotePath(host))
-
-	if err != nil {
-		return err
-	}
-
-	err = sftpClient.Chmod(c.GetRemotePath(host), 0700)
-
-	if err != nil {
-		return err
-	}
-
-	err = client.Upload(filePath, remoteFile)
-
-	if err != nil {
-		return err
-	}
-
-	err = sftpClient.Chmod(remoteFile, 0600)
-
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (c *Config) ComposeRemoteFilePath(localFileName string, host string) string {
+func (app *App) getRemoteFilePath(currentHost string) string {
 
-	return fmt.Sprintf("%s/%s", c.Servers[host].DstPath, filepath.Base(localFileName))
+	return fmt.Sprintf("%s/%s", app.config.Servers[currentHost].DstPath, path.Base(app.tempBackupFile))
 }
 
 func IsBaseDirExists(file string) error {
@@ -240,7 +278,7 @@ func CopyFile(inFile, outFile string) error {
 	}
 	defer in.Close()
 
-	out, err := os.OpenFile(outFile, os.O_CREATE|os.O_RDWR, 0600)
+	out, err := os.OpenFile(outFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -264,15 +302,15 @@ func CopyFile(inFile, outFile string) error {
 	return nil
 }
 
-func CopyFilesFromTempToLocalBackup(tempFile, checksumFile string, c *Config) error {
+func (app *App) createLocalBackup() error {
 
-	if err := CopyFile(tempFile, c.ComposeLocalFile(tempFile)); err != nil {
+	if err := CopyFile(app.getTempFile(), app.config.ComposeLocalFile(app.getTempFile())); err != nil {
 		return err
 	}
 
-	if err := CopyFile(checksumFile, c.ComposeLocalFile(checksumFile)); err != nil {
-		return err
-	}
+	// if err := CopyFile(checksumFile, c.ComposeLocalFile(checksumFile)); err != nil {
+	// 	return err
+	// }
 	return nil
 
 }
@@ -329,23 +367,15 @@ func generateChecksumForFile(file string) error {
 
 func main() {
 
-	var config Config
+	var app App
 
 	configPath := flag.String("config", "config.toml", "Configuration file path")
 
 	flag.Parse()
 
-	if err := config.ParseConfig(*configPath); err != nil {
-		log.Fatal(err)
-	}
+	app.Init(*configPath)
 
-	tempFile, err := CreateTemporaryFile()
-	if err != nil {
-		log.Fatal("Can't create temporary file: ", err)
-	}
-	defer os.RemoveAll(filepath.Dir(tempFile))
-
-	tarFile, err := os.Create(tempFile)
+	tarFile, err := os.Create(app.getTempFile())
 
 	if err != nil {
 		log.Fatal("Main create backup file: ", err)
@@ -405,7 +435,7 @@ func main() {
 		return nil
 	}
 
-	dirs := config.GetSourceDirs()
+	dirs := app.GetSourceDirs()
 
 	for _, dir := range dirs {
 
@@ -423,13 +453,13 @@ func main() {
 	tarWriter.Close()
 	gzipWriter.Close()
 
-	err = generateChecksumForFile(tempFile)
+	err = generateChecksumForFile(app.getTempFile())
 
 	if err != nil {
 		log.Println("Can't generete checksum file: ", err)
 	}
 
-	err = verifyChecksum(tempFile)
+	err = verifyChecksum(app.getTempFile())
 
 	if err != nil {
 
@@ -437,27 +467,13 @@ func main() {
 
 	}
 
-	//copy backup file to local destination directory if exists
-
-	if err = CopyFilesFromTempToLocalBackup(tempFile, ComposeBackupChecksumFileName(tempFile), &config); err != nil {
+	if err = app.createLocalBackup(); err != nil {
 		log.Println("Can't create local backup. Skipping...", err)
 	}
 
-	//send backup to remote hosts
-	for host := range config.Servers {
+	app.sendFiles()
 
-		if err = config.sendFileToHost(tempFile, host); err != nil {
-
-			log.Fatal("Error sending backup to remote host: ", err)
-
-		}
-
-		//send checksum to remote hosts
-		if err = config.sendFileToHost(ComposeBackupChecksumFileName(tempFile), host); err != nil {
-
-			log.Fatal("Error sending checksum file to remote host", err)
-		}
-	}
+	app.Finish()
 
 	log.Println("Backup done.")
 }
