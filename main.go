@@ -328,15 +328,15 @@ func (app *App) createLocalBackup() error {
 
 }
 
-func verifyChecksum(file string) error {
+func (app *App) verifyChecksum() error {
 
 	var verifyOut bytes.Buffer
 
-	cmd := exec.Command("sha256sum", "-c", ComposeBackupChecksumFileName(file))
+	cmd := exec.Command("sha256sum", "-c", app.getChecksumFile())
 
 	cmd.Stdout = &verifyOut
 
-	cmd.Dir = filepath.Dir(file)
+	cmd.Dir = filepath.Dir(app.getChecksumFile())
 
 	if err := cmd.Run(); err != nil {
 		return err
@@ -354,11 +354,13 @@ func verifyChecksum(file string) error {
 	return errors.New("checksum incorrect")
 }
 
-func generateChecksumForFile(file string) error {
+func (app *App) generateChecksumFile() error {
+
+	file := app.getTempFile()
 
 	cmd := exec.Command("sha256sum", path.Base(file))
 
-	checksumFile, err := os.Create(ComposeBackupChecksumFileName(file))
+	checksumFile, err := os.Create(app.getChecksumFile())
 
 	if err != nil {
 		return err
@@ -472,13 +474,13 @@ func main() {
 	gzipWriter.Close()
 	tarFile.Close()
 
-	err = generateChecksumForFile(app.getTempFile())
+	err = app.generateChecksumFile()
 
 	if err != nil {
 		log.Println("can't generete checksum file: ", err)
 	}
 
-	err = verifyChecksum(app.getTempFile())
+	err = app.verifyChecksum()
 
 	if err != nil {
 
