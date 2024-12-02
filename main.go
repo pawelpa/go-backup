@@ -84,6 +84,8 @@ func (app *App) CloseWriters() {
 
 	app.tarWr.Close()
 	app.gzipWr.Close()
+	app.tarFile.Close()
+
 }
 
 func (app *App) getTempFile() string {
@@ -95,7 +97,6 @@ func (app *App) getChecksumFile() string {
 
 func (app *App) Finish() {
 
-	defer app.tarFile.Close()
 	defer os.RemoveAll(path.Dir(app.tempBackupFile))
 
 }
