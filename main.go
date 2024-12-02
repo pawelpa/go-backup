@@ -27,6 +27,9 @@ type App struct {
 	tempBackupFile   string
 	tempChecksumFile string
 	fileNameFormat   string
+	tarFile          *os.File
+	gzipWr           *gzip.Writer
+	tarWr            *tar.Writer
 }
 
 type Config struct {
@@ -69,7 +72,18 @@ func (app *App) Init(configPath string) error {
 	app.tempBackupFile = fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format(app.fileNameFormat))
 	app.tempChecksumFile = fmt.Sprintf("%s.sha256sum", app.tempBackupFile)
 
+	app.prepareTarFile()
+
+	app.gzipWr = gzip.NewWriter(app.tarFile)
+	app.tarWr = tar.NewWriter(app.gzipWr)
+
 	return nil
+}
+
+func (app *App) CloseWriters() {
+
+	app.tarWr.Close()
+	app.gzipWr.Close()
 }
 
 func (app *App) getTempFile() string {
@@ -81,7 +95,9 @@ func (app *App) getChecksumFile() string {
 
 func (app *App) Finish() {
 
+	defer app.tarFile.Close()
 	defer os.RemoveAll(path.Dir(app.tempBackupFile))
+
 }
 
 func (app *App) GetSourceDirs() []string {
@@ -132,6 +148,7 @@ func (c *Config) ParseConfig(configFile string) error {
 	}
 
 	_, err := toml.DecodeFile(configFile, c)
+
 	if err != nil {
 		return err
 	}
@@ -180,7 +197,7 @@ func (c *Config) GetPrivateKeyPasspharse(host string) string {
 	return c.Servers[host].Passpharse
 }
 
-func (app *App) sendFiles() error {
+func (app *App) createRemoteBackup() error {
 
 	c := app.config
 
@@ -380,6 +397,93 @@ func (app *App) generateChecksumFile() error {
 
 }
 
+func (app *App) prepareTarFile() {
+
+	var err error
+
+	app.tarFile, err = os.Create(app.getTempFile())
+
+	if err != nil {
+		log.Fatal("error creating tar file: ", err)
+	}
+
+}
+
+func (app *App) generateGzipArchive() {
+
+	var walkFunction = func(path string, finfo os.FileInfo, err error) error {
+
+		var link string
+
+		if err != nil {
+			return err
+		}
+
+		if finfo.Mode()&os.ModeSymlink == os.ModeSymlink {
+			if link, err = os.Readlink(path); err != nil {
+				return err
+			}
+		}
+
+		hdr, err := tar.FileInfoHeader(finfo, link)
+
+		if err != nil {
+			log.Fatalf("can't populate header: %s", err)
+			return err
+		}
+
+		if filepath.IsAbs(path) {
+
+			hdr.Name = path
+		}
+
+		err = app.tarWr.WriteHeader(hdr)
+		if err != nil {
+			log.Fatalf("can't write header info: %s", err)
+			return err
+		}
+
+		if !finfo.Mode().IsRegular() {
+			return nil
+		}
+		if finfo.Mode().IsDir() {
+			return nil
+		}
+
+		srcFile, err := os.Open(path)
+
+		if err != nil {
+			log.Fatalf("can't open source file %s for reading: %s", path, err)
+		}
+		defer srcFile.Close()
+
+		_, err = io.Copy(app.tarWr, srcFile)
+
+		if err != nil {
+			log.Fatalf("can't copy file %s to archive: %s", path, err)
+		}
+
+		return nil
+	}
+
+	srcPaths := app.GetSourceDirs()
+
+	for _, srcPath := range srcPaths {
+
+		if !FileExists(srcPath) {
+			log.Printf("Source directory %s doesn't exist, skipping...", srcPath)
+			continue
+		}
+
+		if err := filepath.Walk(srcPath, walkFunction); err != nil {
+
+			fmt.Printf("Failed to create backup file: %s", err)
+
+		}
+	}
+	app.CloseWriters()
+}
+
 func main() {
 
 	var app App
@@ -394,85 +498,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tarFile, err := os.Create(app.getTempFile())
-
-	if err != nil {
-		log.Fatal("can't create temporary backup file: ", err)
-	}
-
-	gzipWriter := gzip.NewWriter(tarFile)
-	tarWriter := tar.NewWriter(gzipWriter)
-
-	walkFunc := func(file string, finfo os.FileInfo, err error) error {
-
-		var link string
-
-		if err != nil {
-			return err
-		}
-
-		if finfo.Mode()&os.ModeSymlink == os.ModeSymlink {
-			if link, err = os.Readlink(file); err != nil {
-				return err
-			}
-		}
-
-		hdr, err := tar.FileInfoHeader(finfo, link)
-
-		if err != nil {
-			log.Fatal("walkFunc: ", err)
-		}
-
-		if filepath.IsAbs(file) {
-
-			hdr.Name = file
-		}
-
-		tarWriter.WriteHeader(hdr)
-
-		if !finfo.Mode().IsRegular() {
-			return nil
-		}
-		if finfo.Mode().IsDir() {
-			return nil
-		}
-
-		srcFile, err := os.Open(file)
-
-		if err != nil {
-			log.Fatal("walkFunc ", err)
-		}
-		defer srcFile.Close()
-
-		_, err = io.Copy(tarWriter, srcFile)
-
-		if err != nil {
-			log.Fatal("walkFunc", err)
-		}
-
-		return nil
-	}
-
-	dirs := app.GetSourceDirs()
-
-	for _, dir := range dirs {
-
-		if !FileExists(dir) {
-			log.Printf("Source directory %s doesn't exist, skipping...", dir)
-			continue
-		}
-
-		if err := filepath.Walk(dir, walkFunc); err != nil {
-
-			fmt.Printf("Failed to create backup file: %s", err)
-
-		}
-	}
-	tarWriter.Flush()
-	gzipWriter.Flush()
-	tarWriter.Close()
-	gzipWriter.Close()
-	tarFile.Close()
+	app.generateGzipArchive()
 
 	err = app.generateChecksumFile()
 
@@ -492,7 +518,7 @@ func main() {
 		log.Println("Can't create local backup. Skipping...", err)
 	}
 
-	err = app.sendFiles()
+	err = app.createRemoteBackup()
 
 	if err != nil {
 		log.Printf("Error sending files to remote host: %s", err)
