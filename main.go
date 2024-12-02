@@ -184,7 +184,7 @@ func (app *App) sendFiles() error {
 
 	c := app.config
 
-	for currentHost := range app.config.Servers {
+	for currentHost := range c.Servers {
 
 		var auth goph.Auth
 		var err error
@@ -216,6 +216,7 @@ func (app *App) sendFiles() error {
 		}
 
 		sftpClient, err := client.NewSftp()
+
 		if err != nil {
 			return err
 		}
@@ -267,7 +268,7 @@ func (app *App) getRemoteDestinationDirectory(currentHost string) string {
 
 }
 
-func IsBaseDirExists(file string) error {
+func createBaseDirIfNotExists(file string) error {
 
 	baseDir := path.Dir(file)
 	info, err := os.Stat(baseDir)
@@ -280,7 +281,7 @@ func IsBaseDirExists(file string) error {
 
 func CopyFile(inFile, outFile string) error {
 
-	if err := IsBaseDirExists(outFile); err != nil {
+	if err := createBaseDirIfNotExists(outFile); err != nil {
 		return err
 	}
 
