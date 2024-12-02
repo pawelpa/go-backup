@@ -232,13 +232,13 @@ func (app *App) sendFiles() error {
 		err = sftpClient.MkdirAll(remoteDir)
 
 		if err != nil {
-			return fmt.Errorf("mkdir %s filed: %s", remoteDir, err)
+			return fmt.Errorf("mkdir %s failed: %s", remoteDir, err)
 		}
 
 		err = sftpClient.Chmod(remoteDir, 0700)
 
 		if err != nil {
-			return fmt.Errorf("chmod remonte direcotry failed: %s", err)
+			return fmt.Errorf("chmod remote direcotry failed: %s", err)
 		}
 
 		err = client.Upload(app.getTempFile(), remoteBackupFile)
