@@ -30,13 +30,20 @@ type App struct {
 	tarFile          *os.File
 	gzipWr           *gzip.Writer
 	tarWr            *tar.Writer
+	multiWr          io.Writer
+	logfile          *os.File
 }
 
 type Config struct {
+	LogOpt  Log      `toml:"log"`
 	GzipOpt Gzip     `toml:"gzip"`
 	Srcdir  Source   `toml:"source"`
 	Dstdir  LocalDst `toml:"local"`
 	Servers map[string]DestinationHost
+}
+
+type Log struct {
+	Logfile string
 }
 
 type Gzip struct {
@@ -69,6 +76,20 @@ func (app *App) Init(configPath string) error {
 		return fmt.Errorf("can't parse config file: %s", err)
 	}
 
+	if app.checkIfLogginIsEnabled() {
+		if app.checkIfPathIsValid() {
+			var err error
+			app.logfile, err = os.Create(app.config.LogOpt.Logfile)
+
+			if err != nil {
+				return fmt.Errorf("can't setup logging to file: %s", err)
+			}
+
+			app.multiWr = io.MultiWriter(os.Stdout, app.logfile)
+			log.SetOutput(app.multiWr)
+		}
+	}
+
 	dir, err := app.CreateTemporaryDirectory()
 	if err != nil {
 		return fmt.Errorf("can't create temporary direcotry for backup: %s", err)
@@ -98,6 +119,19 @@ func (app *App) CloseWriters() {
 
 }
 
+func (app *App) checkIfLogginIsEnabled() bool {
+
+	return app.config.LogOpt.Logfile != ""
+
+}
+
+func (app *App) checkIfPathIsValid() bool {
+
+	regex := regexp.MustCompile(`^(/|\.|~)?[a-zA-Z0-9._/\\-]*$`)
+
+	return regex.MatchString(app.config.LogOpt.Logfile)
+}
+
 func (app *App) getTempFile() string {
 	return app.tempBackupFile
 }
@@ -107,6 +141,7 @@ func (app *App) getChecksumFile() string {
 
 func (app *App) Finish() {
 
+	defer app.logfile.Close()
 	defer os.RemoveAll(path.Dir(app.tempBackupFile))
 
 }
@@ -529,7 +564,8 @@ func main() {
 		log.Printf("Error sending files to remote host: %s", err)
 	}
 
+	log.Println("Backup done.")
+
 	app.Finish()
 
-	log.Println("Backup done.")
 }
