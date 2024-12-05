@@ -87,6 +87,8 @@ func (app *App) Init(configPath string) error {
 
 			app.multiWr = io.MultiWriter(os.Stdout, app.logfile)
 			log.SetOutput(app.multiWr)
+		} else {
+			return fmt.Errorf("invalid logfile path in configuration file")
 		}
 	}
 
@@ -127,7 +129,7 @@ func (app *App) checkIfLogginIsEnabled() bool {
 
 func (app *App) checkIfPathIsValid() bool {
 
-	regex := regexp.MustCompile(`^(/|\.|~)?[a-zA-Z0-9._/\\-]*$`)
+	regex := regexp.MustCompile(`^/[a-zA-Z0-9._/\\-]*$`)
 
 	return regex.MatchString(app.config.LogOpt.Logfile)
 }
