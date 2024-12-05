@@ -44,6 +44,7 @@ type Config struct {
 
 type Log struct {
 	Logfile string
+	Append  bool
 }
 
 type Gzip struct {
@@ -79,7 +80,14 @@ func (app *App) Init(configPath string) error {
 	if app.checkIfLogginIsEnabled() {
 		if app.checkIfPathIsValid() {
 			var err error
-			app.logfile, err = os.Create(app.config.LogOpt.Logfile)
+			flags := os.O_CREATE | os.O_WRONLY
+
+			if app.config.LogOpt.Append {
+				flags |= os.O_APPEND
+			} else {
+				flags |= os.O_TRUNC
+			}
+			app.logfile, err = os.OpenFile(app.config.LogOpt.Logfile, flags, 0600)
 
 			if err != nil {
 				return fmt.Errorf("can't setup logging to file: %s", err)
