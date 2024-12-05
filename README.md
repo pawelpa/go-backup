@@ -1,5 +1,5 @@
 # go-backup 
-###  Simple tool to create backups from local files to local or remote destinations through ssh
+####  Simple tool for creating backups from local files to local or remote destinations via ssh
 
 ## Installation
 
