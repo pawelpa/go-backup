@@ -251,26 +251,36 @@ func (app *App) createRemoteBackup() error {
 
 	c := app.config
 
+	log.Printf("Remote backup started.")
+
 	for currentHost := range c.Servers {
 
 		var auth goph.Auth
 		var err error
+
 		port := c.GetPort(currentHost)
 		username := c.GetUserName(currentHost)
 		ip := c.GetHost(currentHost)
 
+		log.Printf("Sending backup to: %s...", ip)
+
 		if c.GetUseKey(currentHost) {
 
 			auth, err = goph.Key(c.GetPrivKeyPath(currentHost), c.GetPrivateKeyPasspharse(currentHost))
+
 			if err != nil {
 				return err
 			}
+
+			log.Printf("Authenticate using public key.")
 
 		} else {
 
 			auth = goph.Password(c.GetPassword(currentHost))
 
+			log.Printf("Authenticate using password.")
 		}
+
 		client, err := goph.NewConn(&goph.Config{
 			User:     username,
 			Addr:     ip,
@@ -278,6 +288,7 @@ func (app *App) createRemoteBackup() error {
 			Auth:     auth,
 			Callback: verifyHost,
 		})
+
 		if err != nil {
 			return err
 		}
@@ -326,6 +337,7 @@ func (app *App) createRemoteBackup() error {
 		}
 
 	}
+	log.Printf("Remote backup done.")
 	return nil
 }
 
@@ -391,6 +403,7 @@ func (app *App) createLocalBackup() error {
 	if err := CopyFile(app.getChecksumFile(), app.composeLocalFile(app.getChecksumFile())); err != nil {
 		return err
 	}
+	log.Printf("Local backup created.")
 	return nil
 
 }
@@ -416,6 +429,7 @@ func (app *App) verifyChecksum() error {
 	}
 
 	if re.Match(verifyOut.Bytes()) {
+		log.Printf("Archive checksum verified")
 		return nil
 	}
 	return errors.New("checksum incorrect")
@@ -442,7 +456,7 @@ func (app *App) generateChecksumFile() error {
 	if err = cmd.Run(); err != nil {
 		return err
 	}
-
+	log.Printf("Checksum file generated.")
 	return nil
 
 }
@@ -518,16 +532,22 @@ func (app *App) generateGzipArchive() {
 
 	srcPaths := app.GetSourceDirs()
 
+	log.Printf("generatin archive...")
+
 	for _, srcPath := range srcPaths {
 
+		log.Printf("Adding %s to archive.", srcPath)
+
 		if !FileExists(srcPath) {
+
 			log.Printf("Source directory %s doesn't exist, skipping...", srcPath)
+
 			continue
 		}
 
 		if err := filepath.Walk(srcPath, walkFunction); err != nil {
 
-			fmt.Printf("Failed to create backup file: %s", err)
+			log.Printf("failed to create backup file: %s\n", err)
 
 		}
 	}
@@ -547,6 +567,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Printf("Backup started.")
 
 	app.generateGzipArchive()
 
