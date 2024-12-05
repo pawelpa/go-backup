@@ -186,7 +186,7 @@ func verifyHost(host string, remote net.Addr, key ssh.PublicKey) error {
 	// return goph.AddKnownHost(host, remote, key, "")
 
 	//if host not found in known_hosts file show error
-	return errors.New("host not found in known_hosts file")
+	return fmt.Errorf("host %s not found in known_host file", host)
 }
 
 func FileExists(file string) bool {
