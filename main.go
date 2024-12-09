@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ProtonMail/gopenpgp/v3/crypto"
 	"github.com/melbahja/goph"
 	"golang.org/x/crypto/ssh"
 )
@@ -26,6 +27,7 @@ type App struct {
 	config           Config
 	tempBackupFile   string
 	tempChecksumFile string
+	encryptedFile    string
 	fileNameFormat   string
 	tarFile          *os.File
 	gzipWr           *gzip.Writer
@@ -113,6 +115,7 @@ func (app *App) Init(configPath string) error {
 
 	app.tempBackupFile = fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format(app.fileNameFormat))
 	app.tempChecksumFile = fmt.Sprintf("%s.sha256sum", app.tempBackupFile)
+	app.encryptedFile = fmt.Sprintf("%s.enc", app.tempBackupFile)
 
 	app.prepareTarFile()
 
@@ -153,6 +156,9 @@ func (app *App) getTempFile() string {
 }
 func (app *App) getChecksumFile() string {
 	return app.tempChecksumFile
+}
+func (app *App) getEncryptedFile() string {
+	return app.encryptedFile
 }
 
 func (app *App) Finish() {
@@ -403,6 +409,88 @@ func CopyFile(inFile, outFile string) error {
 
 	return nil
 }
+func (app *App) LoadPubKey() (string, error) {
+
+	pubkeypath := app.config.GetPubKeyPath()
+
+	pubkey, err := os.ReadFile(pubkeypath)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(pubkey[:]), nil
+}
+
+func (app *App) LoadBackupFile() ([]byte, error) {
+
+	return os.ReadFile(app.getTempFile())
+
+}
+
+func (app *App) WriteEncryptedFile(data []byte) error {
+
+	encryptedFile, err := os.OpenFile(app.getEncryptedFile(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+
+	if err != nil {
+		return fmt.Errorf("can't create encrypted file, %s", err)
+	}
+	defer encryptedFile.Close()
+
+	_, err = encryptedFile.Write(data)
+
+	if err != nil {
+		return fmt.Errorf("can't write to encrypted file, %s", err)
+	}
+
+	return nil
+}
+
+func (app *App) encryptBackup() error {
+
+	pubkey, err := app.LoadPubKey()
+
+	if err != nil {
+		return fmt.Errorf("can't open pubkey file for encryption  %s", err)
+	}
+
+	publicKey, err := crypto.NewKeyFromArmored(pubkey)
+
+	if err != nil {
+		return fmt.Errorf("can't read armored pubkey, %s", err)
+	}
+
+	pgp := crypto.PGP()
+
+	encHandle, err := pgp.Encryption().Recipient(publicKey).New()
+
+	if err != nil {
+		return fmt.Errorf("error creating ecnryption handle, %s", err)
+	}
+
+	data, err := app.LoadBackupFile()
+
+	if err != nil {
+		return fmt.Errorf("can't load backup file for encryption, %s", err)
+	}
+
+	encFile, err := encHandle.Encrypt(data)
+
+	if err != nil {
+		return fmt.Errorf("error encrypting data, %s", err)
+	}
+
+	armored, err := encFile.ArmorBytes()
+
+	app.WriteEncryptedFile(armored)
+
+	if err != nil {
+		return fmt.Errorf("error %s", err)
+	}
+
+	return nil
+
+}
 
 func (app *App) createLocalBackup() error {
 
@@ -413,6 +501,11 @@ func (app *App) createLocalBackup() error {
 	if err := CopyFile(app.getChecksumFile(), app.composeLocalFile(app.getChecksumFile())); err != nil {
 		return err
 	}
+
+	if err := CopyFile(app.getEncryptedFile(), app.composeLocalFile(app.getEncryptedFile())); err != nil {
+		return err
+	}
+
 	log.Printf("Local backup created.")
 	return nil
 
@@ -594,6 +687,10 @@ func main() {
 
 		log.Println("Checksum verification failed: ", err)
 
+	}
+
+	if err = app.encryptBackup(); err != nil {
+		log.Println("Can't encrypt backup, ", err)
 	}
 
 	if err = app.createLocalBackup(); err != nil {
