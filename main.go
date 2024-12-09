@@ -35,11 +35,17 @@ type App struct {
 }
 
 type Config struct {
+	EncOpt  Encrypt  `toml:"encryption"`
 	LogOpt  Log      `toml:"log"`
 	GzipOpt Gzip     `toml:"gzip"`
 	Srcdir  Source   `toml:"source"`
 	Dstdir  LocalDst `toml:"local"`
 	Servers map[string]DestinationHost
+}
+
+type Encrypt struct {
+	Enabled    bool
+	PubKeyPath string
 }
 
 type Log struct {
@@ -213,6 +219,10 @@ func (c *Config) ParseConfig(configFile string) error {
 
 func (app *App) composeLocalFile(tempFile string) string {
 	return fmt.Sprintf("%s/%s", app.config.Dstdir.Dstdir, path.Base(tempFile))
+}
+
+func (c *Config) GetPubKeyPath() string {
+	return c.EncOpt.PubKeyPath
 }
 
 func (c *Config) GetRemotePath(host string) string {
