@@ -168,6 +168,11 @@ func (app *App) Finish() {
 
 }
 
+func (app *App) isEncryptionEnabled() bool {
+
+	return app.config.EncOpt.Enabled
+}
+
 func (app *App) GetSourceDirs() []string {
 
 	return app.config.Srcdir.Srcdirs
@@ -323,6 +328,8 @@ func (app *App) createRemoteBackup() error {
 
 		remoteChecksumFile := path.Join(remoteDir, path.Base(app.getChecksumFile()))
 
+		remoteEncryptedFile := path.Join(remoteDir, path.Base(app.getEncryptedFile()))
+
 		err = sftpClient.MkdirAll(remoteDir)
 
 		if err != nil {
@@ -341,15 +348,38 @@ func (app *App) createRemoteBackup() error {
 			return fmt.Errorf("uploading %s to %s filed: %s", app.getTempFile(), remoteDir, err)
 		}
 
-		err = client.Upload(app.tempChecksumFile, remoteChecksumFile)
-		if err != nil {
-			return fmt.Errorf("error uploading %s to %s: %s", app.tempChecksumFile, remoteChecksumFile, err)
-		}
-
 		err = sftpClient.Chmod(remoteBackupFile, 0600)
 
 		if err != nil {
 			return fmt.Errorf("chmod %s error: %s", remoteBackupFile, err)
+		}
+
+		err = client.Upload(app.tempChecksumFile, remoteChecksumFile)
+
+		if err != nil {
+			return fmt.Errorf("error uploading %s to %s: %s", app.tempChecksumFile, remoteChecksumFile, err)
+		}
+
+		err = sftpClient.Chmod(remoteChecksumFile, 0600)
+
+		if err != nil {
+			return fmt.Errorf("chmod %s error: %s", remoteChecksumFile, err)
+		}
+
+		if app.isEncryptionEnabled() {
+
+			err = client.Upload(app.getEncryptedFile(), remoteEncryptedFile)
+
+			if err != nil {
+				return fmt.Errorf("error uploading %s to %s: %s", app.getEncryptedFile(), remoteEncryptedFile, err)
+			}
+
+			err = sftpClient.Chmod(remoteEncryptedFile, 0600)
+
+			if err != nil {
+				return fmt.Errorf("chomod %s error: %s", remoteEncryptedFile, err)
+			}
+
 		}
 
 	}
@@ -480,12 +510,10 @@ func (app *App) encryptBackup() error {
 		return fmt.Errorf("error encrypting data, %s", err)
 	}
 
-	armored, err := encFile.ArmorBytes()
-
-	app.WriteEncryptedFile(armored)
+	err = app.WriteEncryptedFile(encFile.Bytes())
 
 	if err != nil {
-		return fmt.Errorf("error %s", err)
+		return fmt.Errorf("%s", err)
 	}
 
 	return nil
@@ -502,8 +530,11 @@ func (app *App) createLocalBackup() error {
 		return err
 	}
 
-	if err := CopyFile(app.getEncryptedFile(), app.composeLocalFile(app.getEncryptedFile())); err != nil {
-		return err
+	if app.isEncryptionEnabled() {
+
+		if err := CopyFile(app.getEncryptedFile(), app.composeLocalFile(app.getEncryptedFile())); err != nil {
+			return err
+		}
 	}
 
 	log.Printf("Local backup created.")
@@ -689,8 +720,11 @@ func main() {
 
 	}
 
-	if err = app.encryptBackup(); err != nil {
-		log.Println("Can't encrypt backup, ", err)
+	if app.isEncryptionEnabled() {
+
+		if err = app.encryptBackup(); err != nil {
+			log.Println("Can't encrypt backup, ", err)
+		}
 	}
 
 	if err = app.createLocalBackup(); err != nil {
