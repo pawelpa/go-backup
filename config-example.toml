@@ -1,9 +1,25 @@
 ##################################################################
+# encryption options                                             #
+##################################################################
+[encryption]
+##################################################################
+# set to either true or false                                    #
+##################################################################
+enabled = true
+##################################################################
+
+##################################################################
+#The pubkeypath is the path to the exported armored public key   #
+##################################################################
+pubkeypath="/home/username/pubkey.gpg"                           #
+##################################################################
+
+##################################################################
 #logging specific options                                        #
 ##################################################################
 [log]
 ##################################################################
-# logfilepath set to absolute paht of to "" to disable logging   #
+# logfile set to absolute path or to "" to disable logging   #
 ##################################################################
 logfile = "/tmp/go-backup.log"
 ##################################################################
@@ -88,11 +104,11 @@ PrivKeyPath = '/home/user/.ssh/id_ed25519'
 ###################################################################
 
 ###################################################################
-# Set to passpharse that protect key you specified in PrivKeyPath #
-# or set it to "" (Passparse = "") if your key is not protected   #
-# by passpharse                                                   #
+# Set to passphrase that protect key you specified in PrivKeyPath #
+# or set it to "" (Passphrase = "") if your key is not protected   #
+# by passphrase                                                   #
 ###################################################################
-Passpharse = "passpharse"
+Passphrase = "passphrase"
 ###################################################################
 
 ###################################################################
@@ -110,12 +126,12 @@ Password  = "password123"
 
 # example
 ###################################################################
-# -remonte host: example.com
-# -remonte port: 2222
+# -remote host: example.com
+# -remote port: 2222
 # -path on remote host where backups will be stored: /backups
 # -use public key authentication (Usekey set to true)
 # -private key path set to /home/username/.ssh/id_ed25519 
-# -Passpharse set to "", private key is not protected by passpharse     
+# -Passphrase set to "", private key is not protected by passphrase     
 # -username is set to "username"
 # -password set to "" because Usekey is set to true
 ###################################################################
@@ -125,6 +141,6 @@ Port = 2222
 DstPath = "/backups"
 Usekey = true 
 PrivKeyPath = '/home/username/.ssh/id_ed25519'
-Passpharse = ""
+Passphrase = ""
 Username  = "username"
 Password  = ""
