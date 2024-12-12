@@ -74,7 +74,7 @@ type DestinationHost struct {
 	Username    string
 	Password    string
 	UseKey      bool
-	Passpharse  string
+	Passphrase  string
 }
 
 func (app *App) Init(configPath string) error {
@@ -85,7 +85,7 @@ func (app *App) Init(configPath string) error {
 		return fmt.Errorf("can't parse config file: %s", err)
 	}
 
-	if app.checkIfLogginIsEnabled() {
+	if app.checkIfLoggingIsEnabled() {
 		if app.checkIfPathIsValid() {
 			var err error
 			flags := os.O_CREATE | os.O_WRONLY
@@ -110,7 +110,7 @@ func (app *App) Init(configPath string) error {
 
 	dir, err := app.CreateTemporaryDirectory()
 	if err != nil {
-		return fmt.Errorf("can't create temporary direcotry for backup: %s", err)
+		return fmt.Errorf("can't create temporary directory for backup: %s", err)
 	}
 
 	app.tempBackupFile = fmt.Sprintf("%s/backup_%s.tar.gz", dir, time.Now().Format(app.fileNameFormat))
@@ -138,7 +138,7 @@ func (app *App) CloseWriters() {
 
 }
 
-func (app *App) checkIfLogginIsEnabled() bool {
+func (app *App) checkIfLoggingIsEnabled() bool {
 
 	return app.config.LogOpt.Logfile != ""
 
@@ -217,7 +217,7 @@ func FileExists(file string) bool {
 func (c *Config) ParseConfig(configFile string) error {
 
 	if !FileExists(configFile) {
-		return errors.New("config file doesn't exsists on given path")
+		return errors.New("config file doesn't exists on given path")
 	}
 
 	_, err := toml.DecodeFile(configFile, c)
@@ -264,8 +264,8 @@ func (c *Config) GetPrivKeyPath(host string) string {
 	return c.Servers[host].PrivKeyPath
 }
 
-func (c *Config) GetPrivateKeyPasspharse(host string) string {
-	return c.Servers[host].Passpharse
+func (c *Config) GetPrivateKeyPassphrase(host string) string {
+	return c.Servers[host].Passphrase
 }
 
 func (app *App) createRemoteBackup() error {
@@ -287,7 +287,7 @@ func (app *App) createRemoteBackup() error {
 
 		if c.GetUseKey(currentHost) {
 
-			auth, err = goph.Key(c.GetPrivKeyPath(currentHost), c.GetPrivateKeyPasspharse(currentHost))
+			auth, err = goph.Key(c.GetPrivKeyPath(currentHost), c.GetPrivateKeyPassphrase(currentHost))
 
 			if err != nil {
 				return err
@@ -339,7 +339,7 @@ func (app *App) createRemoteBackup() error {
 		err = sftpClient.Chmod(remoteDir, 0700)
 
 		if err != nil {
-			return fmt.Errorf("chmod remote direcotry failed: %s", err)
+			return fmt.Errorf("chmod remote directory failed: %s", err)
 		}
 
 		err = client.Upload(app.getTempFile(), remoteBackupFile)
@@ -377,7 +377,7 @@ func (app *App) createRemoteBackup() error {
 			err = sftpClient.Chmod(remoteEncryptedFile, 0600)
 
 			if err != nil {
-				return fmt.Errorf("chomod %s error: %s", remoteEncryptedFile, err)
+				return fmt.Errorf("chmod %s error: %s", remoteEncryptedFile, err)
 			}
 
 		}
@@ -495,7 +495,7 @@ func (app *App) encryptBackup() error {
 	encHandle, err := pgp.Encryption().Recipient(publicKey).New()
 
 	if err != nil {
-		return fmt.Errorf("error creating ecnryption handle, %s", err)
+		return fmt.Errorf("error creating encryption handle, %s", err)
 	}
 
 	data, err := app.LoadBackupFile()
@@ -666,7 +666,7 @@ func (app *App) generateGzipArchive() {
 
 	srcPaths := app.GetSourceDirs()
 
-	log.Printf("generatin archive...")
+	log.Printf("generating archive...")
 
 	for _, srcPath := range srcPaths {
 
@@ -709,7 +709,7 @@ func main() {
 	err = app.generateChecksumFile()
 
 	if err != nil {
-		log.Println("can't generete checksum file: ", err)
+		log.Println("can't generate checksum file: ", err)
 	}
 
 	err = app.verifyChecksum()
