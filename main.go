@@ -566,6 +566,8 @@ func (app *App) verifyChecksum() error {
 	cmd := exec.Command("sha256sum", "-c", app.getChecksumFile())
 
 	cmd.Stdout = &verifyOut
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "LANG=C")
 
 	cmd.Dir = filepath.Dir(app.getChecksumFile())
 
@@ -573,7 +575,7 @@ func (app *App) verifyChecksum() error {
 		return err
 	}
 
-	re, err := regexp.Compile(".*:.[OK|DOBRZE]")
+	re, err := regexp.Compile(".*:.[OK]")
 
 	if err != nil {
 		return err
