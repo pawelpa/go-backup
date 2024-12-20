@@ -149,10 +149,25 @@ func (app *App) doSourceDirectoriesExist() bool {
 
 func (app *App) CloseWriters() {
 
-	app.tarWr.Close()
-	app.gzipWr.Close()
-	app.tarFile.Close()
+	var err error
 
+	err = app.tarWr.Close()
+
+	if err != nil {
+		log.Printf("error closing tar writer: %s", err)
+	}
+
+	err = app.gzipWr.Close()
+
+	if err != nil {
+		log.Printf("error closing gzip writer: %s", err)
+	}
+
+	err = app.tarFile.Close()
+
+	if err != nil {
+		log.Printf("error closing backup file: %s", err)
+	}
 }
 
 func (app *App) checkIfLoggingIsEnabled() bool {
