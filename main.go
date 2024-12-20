@@ -117,6 +117,9 @@ func (app *App) Init(configPath string) error {
 	app.tempChecksumFile = fmt.Sprintf("%s.sha256sum", app.tempBackupFile)
 	app.encryptedFile = fmt.Sprintf("%s.enc", app.tempBackupFile)
 
+	if !app.doSourceDirectoriesExist() {
+		return fmt.Errorf("source directories do not exist, backup aborted")
+	}
 	app.prepareTarFile()
 
 	app.gzipWr, err = gzip.NewWriterLevel(app.tarFile, int(app.config.GzipOpt.CompressionLevel))
@@ -128,6 +131,18 @@ func (app *App) Init(configPath string) error {
 	app.tarWr = tar.NewWriter(app.gzipWr)
 
 	return nil
+}
+
+func (app *App) doSourceDirectoriesExist() bool {
+
+	srcDirs := app.GetSourceDirs()
+
+	for _, srcDir := range srcDirs {
+		if FileExists(srcDir) {
+			return true
+		}
+	}
+	return false
 }
 
 func (app *App) CloseWriters() {
@@ -217,7 +232,7 @@ func FileExists(file string) bool {
 func (c *Config) ParseConfig(configFile string) error {
 
 	if !FileExists(configFile) {
-		return errors.New("config file doesn't exists on given path")
+		return errors.New("config file doesn't exist on given path")
 	}
 
 	_, err := toml.DecodeFile(configFile, c)
@@ -676,12 +691,11 @@ func (app *App) generateGzipArchive() {
 
 			log.Printf("Source directory %s doesn't exist, skipping...", srcPath)
 
-			continue
-		}
+		} else {
 
-		if err := filepath.Walk(srcPath, walkFunction); err != nil {
-
-			log.Printf("failed to create backup file: %s\n", err)
+			if err := filepath.Walk(srcPath, walkFunction); err != nil {
+				log.Printf("failed to create backup file: %s\n", err)
+			}
 
 		}
 	}
