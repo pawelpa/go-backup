@@ -108,7 +108,12 @@ func (app *App) Init(configPath string) error {
 		}
 	}
 
+	if !app.doSourceDirectoriesExist() {
+		return fmt.Errorf("source directories do not exist, backup aborted")
+	}
+
 	dir, err := app.CreateTemporaryDirectory()
+
 	if err != nil {
 		return fmt.Errorf("can't create temporary directory for backup: %s", err)
 	}
@@ -117,9 +122,6 @@ func (app *App) Init(configPath string) error {
 	app.tempChecksumFile = fmt.Sprintf("%s.sha256sum", app.tempBackupFile)
 	app.encryptedFile = fmt.Sprintf("%s.enc", app.tempBackupFile)
 
-	if !app.doSourceDirectoriesExist() {
-		return fmt.Errorf("source directories do not exist, backup aborted")
-	}
 	app.prepareTarFile()
 
 	app.gzipWr, err = gzip.NewWriterLevel(app.tarFile, int(app.config.GzipOpt.CompressionLevel))
