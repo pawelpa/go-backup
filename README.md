@@ -3,7 +3,7 @@
 
 ## Installation
 
-### Instruction how to download and install go language on Linux you can find on: https://go.dev/doc/install
+#### Instruction how to download and install go language on Linux you can find on: https://go.dev/doc/install
 
 ```$ git clone https://github.com/pawelpa/go-backup ```
 
@@ -11,7 +11,7 @@
 
 ```$ go build .```
 
-Edit config.toml to your preference and then run:
+Edit config.toml to your preference and then run the command:
 
 ```$ ./go-backup -config config.toml```
 
